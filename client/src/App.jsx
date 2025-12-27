@@ -12,9 +12,13 @@ function App() {
 
   const fetchMoods = async () => {
     try {
-      setLoading(true); // set loading silently for background updates? No, initial load.
+      setLoading(true);
+      console.log(`Fetching moods from: ${API_URL}/moods`);
       const response = await fetch(`${API_URL}/moods`);
-      if (!response.ok) throw new Error('Failed to fetch moods');
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch moods: ${response.status} ${response.statusText} - ${text}`);
+      }
       const data = await response.json();
       setDistrictMoods(data);
     } catch (error) {
@@ -26,7 +30,6 @@ function App() {
 
   useEffect(() => {
     fetchMoods();
-    // Optional: Poll for updates every 30 seconds
     const interval = setInterval(fetchMoods, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -35,6 +38,7 @@ function App() {
     if (!selectedDistrict) return;
 
     try {
+      console.log(`Submitting mood to: ${API_URL}/mood`);
       const response = await fetch(`${API_URL}/mood`, {
         method: 'POST',
         headers: {
@@ -44,16 +48,24 @@ function App() {
       });
 
       if (response.ok) {
-        // Refresh data to show updated mood immediately
         await fetchMoods();
         alert(`Recorded ${mood} for ${selectedDistrict}!`);
-        setSelectedDistrict(null); // Reset selection after submission
+        setSelectedDistrict(null);
       } else {
-        alert('Failed to record mood. Please try again.');
+        const errorText = await response.text();
+        console.error("Server error response:", errorText);
+        let errorMessage = 'Failed to record mood.';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage += ` ${errorJson.error || ''}`;
+        } catch (e) {
+          errorMessage += ` Status: ${response.status}`;
+        }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error("Error submitting mood:", error);
-      alert('Error connecting to server.');
+      alert('Failed to record mood. Please try again.'); // Keep user preferred message
     }
   };
 
